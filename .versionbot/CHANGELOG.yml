@@ -1,4 +1,51 @@
 - commits:
+    - subject: Only report on apps in the target state.
+      hash: 38ced12418f3c8dcb851902178800213d52a254b
+      body: |
+        If an app uuid is not part of the target state, that means the device
+        does not have authorization to the app and trying to report on it will
+        get a 401 from the API. This can happen when moving a device between
+        fleets. There is an interval during which the device will have services
+        from both apps, but it will no longer have authorization to report
+        services from the uninstalling app.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Felipe Lalanne
+      nested: []
+    - subject: Report service is installing
+      hash: 01bdedd94a911cb1850481391e6f63d05d764250
+      body: |
+        This adds a new property `Service:installing` that lets the report
+        module know that a downloaded service is being installed in order to
+        report it to the backend.
+
+        This also renames ServiceContainerStatus::Installed to `Created` to
+        match more closely what docker reports.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Felipe Lalanne
+      nested: []
+    - subject: Add downloading/downloaded update statuses
+      hash: a555b78e1e9a9861435a0039293dc8fcd37325ef
+      body: >
+        This is so the reporting is more in line with
+        https://docs.balena.io/learn/manage/device-statuses#update-statuses
+
+
+        This replaces the `Installing` status with `Downloading`. We might
+
+        re-add that in a future commit.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Felipe Lalanne
+      nested: []
+  version: 0.21.1
+  title: ""
+  date: 2026-03-16T19:28:33.518Z
+- commits:
     - subject: Use debugging assertions for integration tests
       hash: be30dcc09954fd43b1cde4dd799d3b49c9aad6e5
       body: |
