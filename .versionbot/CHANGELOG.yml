@@ -1,4 +1,18 @@
 - commits:
+    - subject: Add explicit SIGTERM handling to main process
+      hash: eab5580a5ff44c744273a458ac7259b17becdb2e
+      body: |
+        The binary was not properly handling SIGTERM, which would result in the
+        engine having to send a SIGKILL to the process instead.
+      footer:
+        Change-type: patch
+        change-type: patch
+      author: Felipe Lalanne
+      nested: []
+  version: 0.21.2
+  title: ""
+  date: 2026-03-19T17:19:27.436Z
+- commits:
     - subject: Only report on apps in the target state.
       hash: 38ced12418f3c8dcb851902178800213d52a254b
       body: |
