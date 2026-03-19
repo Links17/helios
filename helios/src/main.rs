@@ -170,6 +170,9 @@ async fn start_supervisor(
         warn!("running in unmanaged mode");
     }
 
+    // Create a signal stream for SIGTERM
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
     // Start main loop and terminate on error
     tokio::select! {
         // Start local API server
@@ -211,6 +214,12 @@ async fn start_supervisor(
             seek_request_rx,
             local_state_tx,
         ) => res.map_err(|err| err.into()),
+
+        // Wait for sigterm
+        _ = sigterm.recv() => {
+            debug!("Caught SIGTERM, exiting ...");
+            Ok(())
+        }
     }
 }
 

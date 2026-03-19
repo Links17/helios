@@ -22,7 +22,7 @@ helios-store.workspace = true
 helios-util.workspace = true
 
 clap.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "signal", "macros"] }
 tracing-subscriber.workspace = true
 tracing.workspace = true
 
