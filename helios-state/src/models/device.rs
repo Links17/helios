@@ -90,20 +90,20 @@ impl From<RemoteDeviceTarget> for DeviceTarget {
         let mut userapps = Map::new();
         #[cfg(feature = "balenahup")]
         let mut hostapps = Vec::new();
-        for (app_uuid, app) in apps {
+        for (_app_uuid, app) in apps {
             match app {
                 // Read the hostapp info if it exists and the feature is enabled
                 #[cfg(feature = "balenahup")]
                 RemoteAppTarget::Host(hostapp) => {
-                    hostapps.push((app_uuid, hostapp).into());
+                    hostapps.push((_app_uuid, hostapp).into());
                 }
                 #[cfg(not(feature = "balenahup"))]
                 RemoteAppTarget::Host(_) => {}
                 // Read the userapp info if it exists and the feature is enabled
                 #[cfg(feature = "userapps")]
                 RemoteAppTarget::User(userapp) => {
-                    let app = (&app_uuid, userapp).into();
-                    userapps.insert(app_uuid, app);
+                    let app = (&_app_uuid, userapp).into();
+                    userapps.insert(_app_uuid, app);
                 }
                 #[cfg(not(feature = "userapps"))]
                 RemoteAppTarget::User(_) => {}

@@ -304,7 +304,9 @@ mod tests {
     use tokio::time::timeout;
 
     use super::*;
-    use crate::config::{MqttCredentials, MqttIdentity, ScriptConfig, ShadowEnvConfig};
+    use crate::config::{
+        MqttCredentials, MqttIdentity, ReportConfig, ScriptConfig, ShadowEnvConfig,
+    };
 
     fn mqtt_config() -> MqttConfig {
         MqttConfig {
@@ -317,7 +319,8 @@ mod tests {
             credentials: MqttCredentials::default(),
             clean_session: true,
             keep_alive: Duration::from_secs(30),
-            report_interval: Duration::from_secs(300),
+            device_status_report: ReportConfig::default(),
+            release_status_report: ReportConfig::default(),
             script: ScriptConfig::default(),
             shadow_env: ShadowEnvConfig::default(),
         }

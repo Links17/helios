@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::num::ParseIntError;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -15,6 +15,12 @@ fn parse_duration(s: &str) -> Result<Duration, ParseIntError> {
 fn parse_duration_secs(s: &str) -> Result<Duration, ParseIntError> {
     let secs: u64 = s.parse()?;
     Ok(Duration::from_secs(secs))
+}
+
+#[derive(Clone, Debug, ValueEnum)]
+pub enum MqttReportStartup {
+    Immediate,
+    Delayed,
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -246,6 +252,42 @@ pub struct Cli {
     )]
     pub mqtt_report_interval: Option<Duration>,
 
+    /// MQTT deviceStatus report interval in seconds
+    #[arg(
+        env = "HELIOS_MQTT_DEVICE_STATUS_REPORT_INTERVAL_SEC",
+        long = "mqtt-device-status-report-interval-sec",
+        value_name = "sec",
+        value_parser = parse_duration_secs
+    )]
+    pub mqtt_device_status_report_interval: Option<Duration>,
+
+    /// MQTT releaseStatus report interval in seconds
+    #[arg(
+        env = "HELIOS_MQTT_RELEASE_STATUS_REPORT_INTERVAL_SEC",
+        long = "mqtt-release-status-report-interval-sec",
+        value_name = "sec",
+        value_parser = parse_duration_secs
+    )]
+    pub mqtt_release_status_report_interval: Option<Duration>,
+
+    /// MQTT deviceStatus periodic reporter startup strategy
+    #[arg(
+        env = "HELIOS_MQTT_DEVICE_STATUS_REPORT_STARTUP",
+        long = "mqtt-device-status-report-startup",
+        value_name = "mode",
+        value_enum
+    )]
+    pub mqtt_device_status_report_startup: Option<MqttReportStartup>,
+
+    /// MQTT releaseStatus periodic reporter startup strategy
+    #[arg(
+        env = "HELIOS_MQTT_RELEASE_STATUS_REPORT_STARTUP",
+        long = "mqtt-release-status-report-startup",
+        value_name = "mode",
+        value_enum
+    )]
+    pub mqtt_release_status_report_startup: Option<MqttReportStartup>,
+
     /// Enable script command handling in MQTT runtime
     #[arg(
         env = "HELIOS_MQTT_SCRIPT_ENABLE",
@@ -289,6 +331,32 @@ pub struct Cli {
         value_parser = parse_duration
     )]
     pub host_metrics_interval: Option<Duration>,
+
+    /// Enable CPU temperature collection when the platform supports it
+    #[arg(
+        env = "HELIOS_HOST_METRICS_CPU_TEMPERATURE_ENABLE",
+        long = "host-metrics-cpu-temperature-enable",
+        value_name = "bool",
+        default_value_t = true
+    )]
+    pub host_metrics_cpu_temperature_enable: bool,
+
+    /// Optional endpoint returning a plain-text public IP for metrics enrichment
+    #[arg(
+        env = "HELIOS_HOST_METRICS_PUBLIC_IP_ENDPOINT",
+        long = "host-metrics-public-ip-endpoint",
+        value_name = "url"
+    )]
+    pub host_metrics_public_ip_endpoint: Option<String>,
+
+    /// Timeout in milliseconds for the optional public IP endpoint
+    #[arg(
+        env = "HELIOS_HOST_METRICS_PUBLIC_IP_TIMEOUT_MS",
+        long = "host-metrics-public-ip-timeout-ms",
+        value_name = "ms",
+        value_parser = parse_duration
+    )]
+    pub host_metrics_public_ip_timeout: Option<Duration>,
 }
 
 pub fn parse() -> Cli {

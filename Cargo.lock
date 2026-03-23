@@ -1034,6 +1034,7 @@ name = "helios-host-metrics"
 version = "0.21.2"
 dependencies = [
  "helios-util",
+ "reqwest",
  "serde",
  "tokio",
  "tracing",

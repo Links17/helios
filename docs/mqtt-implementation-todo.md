@@ -20,6 +20,6 @@
 - [x] 增加 `update/rejected` 重试与 `409` 自动恢复流程任务
 - [x] 补齐 `update/script` topic 发布链路与 E2E 测试
 - [x] 增加 release/script/shadow 集成测试
-- [ ] 明确周期上报启动策略：首次延迟上报
-- [ ] 明确周期上报启动策略：启动立即上报
-- [ ] 为 `deviceStatus` 与 `releaseStatus` 提供独立上报间隔配置
+- [x] 明确周期上报启动策略：默认首次延迟上报
+- [x] 支持将周期上报启动策略切换为启动立即上报
+- [x] 为 `deviceStatus` 与 `releaseStatus` 提供独立上报间隔配置

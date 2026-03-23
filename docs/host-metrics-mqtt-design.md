@@ -173,8 +173,13 @@ pub struct HostMetricsSnapshot {
 
 说明：
 
+- 实现上建议分为“跨平台核心指标”和“协议预留字段”两层：
+  - 核心指标：内存、磁盘、CPU 使用率、本地 IP；
+  - 预留字段：`public_ip`、地理位置、LoRa/LTE/GPS 等，首期允许仅保留字段与兼容默认值。
+- 预留字段建议通过可配置 enrichment 扩展注入，而不是让核心采集器硬编码依赖外部服务。
 - 首期建议将 `public_ip` 与地理位置采集做成可选能力（默认关闭），避免依赖外网服务。
 - 无法采集的字段按协议兼容值填充，不阻塞整体上报。
+- 容量字段统一按十进制 `MB` 表示（`1 MB = 1,000,000 bytes`）。
 
 ## 6.2 采集来源建议
 
@@ -183,6 +188,8 @@ pub struct HostMetricsSnapshot {
 - 内存：`/proc/meminfo` 或 `sysinfo`。
 - 磁盘：`statvfs` 或 `sysinfo` 文件系统统计。
 - IP：本机网卡枚举（IPv4 优先）。
+- 对 macOS 等非 Linux 平台，优先实现核心指标，温度与定位/无线能力保持可选扩展。
+- 对 `public_ip` 等外部依赖指标，默认关闭，仅在显式配置 endpoint 时启用。
 
 ## 6.3 采集策略
 
@@ -205,7 +212,11 @@ pub struct HostMetricsSnapshot {
 - `username/password` 或 `tls cert/key/ca`
 - `clean_session`（默认 `true`）
 - `keep_alive_sec`
-- `report_interval_sec`（默认 300）
+- `report_interval_sec`（兼容性的共享兜底配置，默认 300）
+- `device_status_report_interval_sec`（可选，覆盖 `deviceStatus` 周期上报间隔）
+- `release_status_report_interval_sec`（可选，覆盖 `releaseStatus` 周期上报间隔）
+- `device_status_report_startup`（`delayed` / `immediate`，默认 `delayed`）
+- `release_status_report_startup`（`delayed` / `immediate`，默认 `delayed`）
 - `script_exec_timeout_sec`（默认 30）
 - `script_max_output_bytes`（默认 64KB）
 - `env_apply_strategy`（`full_restart` / `rolling_restart`，默认 `full_restart` 以兼容 csg）

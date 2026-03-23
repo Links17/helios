@@ -118,7 +118,9 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    use crate::config::{MqttCredentials, MqttIdentity, ScriptConfig, ShadowEnvConfig};
+    use crate::config::{
+        MqttCredentials, MqttIdentity, ReportConfig, ScriptConfig, ShadowEnvConfig,
+    };
 
     #[test]
     fn it_builds_expected_script_topics() {
@@ -132,7 +134,8 @@ mod tests {
             credentials: MqttCredentials::default(),
             clean_session: true,
             keep_alive: Duration::from_secs(30),
-            report_interval: Duration::from_secs(300),
+            device_status_report: ReportConfig::default(),
+            release_status_report: ReportConfig::default(),
             script: ScriptConfig::default(),
             shadow_env: ShadowEnvConfig::default(),
         };

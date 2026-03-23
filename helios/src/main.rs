@@ -29,7 +29,7 @@ use helios_util as util;
 use helios_util::types::Uuid;
 
 use crate::api::{ApiConfig, Listener, LocalAddress};
-use crate::cli::Cli;
+use crate::cli::{Cli, MqttReportStartup};
 use crate::legacy::{LegacyConfig, ProxyConfig, ProxyState};
 use crate::oci::RegistryAuth;
 use crate::remote::{
@@ -325,7 +325,20 @@ fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
         },
         clean_session: cli.mqtt_clean_session,
         keep_alive: cli.mqtt_keep_alive.unwrap_or(Duration::from_secs(30)),
-        report_interval: cli.mqtt_report_interval.unwrap_or(Duration::from_secs(300)),
+        device_status_report: mqtt::ReportConfig {
+            interval: mqtt_report_interval(
+                cli.mqtt_device_status_report_interval,
+                cli.mqtt_report_interval,
+            ),
+            startup: mqtt_report_startup(cli.mqtt_device_status_report_startup.clone()),
+        },
+        release_status_report: mqtt::ReportConfig {
+            interval: mqtt_report_interval(
+                cli.mqtt_release_status_report_interval,
+                cli.mqtt_report_interval,
+            ),
+            startup: mqtt_report_startup(cli.mqtt_release_status_report_startup.clone()),
+        },
         script: mqtt::ScriptConfig {
             enable: cli.mqtt_script_enable,
             exec_timeout: cli.mqtt_script_timeout.unwrap_or(Duration::from_secs(30)),
@@ -335,6 +348,17 @@ fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
             enable: cli.mqtt_shadow_env_enable,
         },
     })
+}
+
+fn mqtt_report_interval(interval: Option<Duration>, fallback: Option<Duration>) -> Duration {
+    interval.or(fallback).unwrap_or(Duration::from_secs(300))
+}
+
+fn mqtt_report_startup(startup: Option<MqttReportStartup>) -> mqtt::ReportStartup {
+    match startup.unwrap_or(MqttReportStartup::Delayed) {
+        MqttReportStartup::Immediate => mqtt::ReportStartup::Immediate,
+        MqttReportStartup::Delayed => mqtt::ReportStartup::Delayed,
+    }
 }
 
 fn maybe_host_metrics_config(
@@ -347,6 +371,15 @@ fn maybe_host_metrics_config(
         sample_interval: cli
             .host_metrics_interval
             .unwrap_or(Duration::from_secs(300)),
+        reserved: host_metrics::ReservedMetricsConfig {
+            cpu_temperature_enable: cli.host_metrics_cpu_temperature_enable,
+            public_ip: host_metrics::PublicIpConfig {
+                endpoint: cli.host_metrics_public_ip_endpoint.clone(),
+                timeout: cli
+                    .host_metrics_public_ip_timeout
+                    .unwrap_or(Duration::from_secs(2)),
+            },
+        },
     })
 }
 

@@ -4,27 +4,47 @@ use helios_util::ticker;
 use tokio::sync::{mpsc, watch};
 
 use crate::protocol::{DeviceStatusUpdatePayload, ReleaseStatusUpdatePayload};
-use crate::{MqttConfig, OutboundMessage, PublishMessage, RuntimeError, topics};
+use crate::{
+    MqttConfig, OutboundMessage, PublishMessage, ReportConfig, ReportStartup, RuntimeError, topics,
+};
+
+fn report_interval(config: ReportConfig) -> tokio::time::Interval {
+    match config.startup {
+        ReportStartup::Immediate => ticker::interval(config.interval),
+        ReportStartup::Delayed => ticker::delayed_interval(config.interval),
+    }
+}
+
+async fn start_reporter<F>(
+    report_config: ReportConfig,
+    outbound_tx: mpsc::Sender<OutboundMessage>,
+    mut build_message: F,
+) -> Result<(), RuntimeError>
+where
+    F: FnMut() -> Result<PublishMessage, RuntimeError>,
+{
+    let mut interval = report_interval(report_config);
+
+    loop {
+        interval.tick().await;
+
+        let _ = outbound_tx
+            .send(OutboundMessage::Publish(build_message()?))
+            .await;
+    }
+}
 
 pub async fn start_device_status_reporter(
     config: MqttConfig,
     metrics_rx: watch::Receiver<HostMetricsSnapshot>,
     outbound_tx: mpsc::Sender<OutboundMessage>,
 ) -> Result<(), RuntimeError> {
-    let mut interval = ticker::delayed_interval(config.report_interval);
-
-    loop {
-        interval.tick().await;
-
+    start_reporter(config.device_status_report, outbound_tx, move || {
         let payload =
             DeviceStatusUpdatePayload::periodic_report(&config.identity, &metrics_rx.borrow());
-        let _ = outbound_tx
-            .send(OutboundMessage::Publish(PublishMessage::json(
-                topics::device_status_update(&config),
-                &payload,
-            )?))
-            .await;
-    }
+        PublishMessage::json(topics::device_status_update(&config), &payload)
+    })
+    .await
 }
 
 pub async fn start_release_status_reporter(
@@ -32,20 +52,12 @@ pub async fn start_release_status_reporter(
     local_state_rx: watch::Receiver<LocalState>,
     outbound_tx: mpsc::Sender<OutboundMessage>,
 ) -> Result<(), RuntimeError> {
-    let mut interval = ticker::delayed_interval(config.report_interval);
-
-    loop {
-        interval.tick().await;
-
+    start_reporter(config.release_status_report, outbound_tx, move || {
         let payload =
             ReleaseStatusUpdatePayload::periodic_report(&config.identity, &local_state_rx.borrow());
-        let _ = outbound_tx
-            .send(OutboundMessage::Publish(PublishMessage::json(
-                topics::release_status_update(&config),
-                &payload,
-            )?))
-            .await;
-    }
+        PublishMessage::json(topics::release_status_update(&config), &payload)
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -59,7 +71,9 @@ mod tests {
     use tokio::time::timeout;
 
     use super::*;
-    use crate::config::{MqttCredentials, MqttIdentity, ScriptConfig, ShadowEnvConfig};
+    use crate::config::{
+        MqttCredentials, MqttIdentity, ReportConfig, ReportStartup, ScriptConfig, ShadowEnvConfig,
+    };
 
     fn mqtt_config() -> MqttConfig {
         MqttConfig {
@@ -72,7 +86,14 @@ mod tests {
             credentials: MqttCredentials::default(),
             clean_session: true,
             keep_alive: Duration::from_secs(30),
-            report_interval: Duration::from_millis(20),
+            device_status_report: ReportConfig {
+                interval: Duration::from_millis(20),
+                startup: ReportStartup::Immediate,
+            },
+            release_status_report: ReportConfig {
+                interval: Duration::from_millis(20),
+                startup: ReportStartup::Immediate,
+            },
             script: ScriptConfig::default(),
             shadow_env: ShadowEnvConfig::default(),
         }
@@ -129,6 +150,34 @@ mod tests {
         }
 
         metrics_tx.send(HostMetricsSnapshot::default()).unwrap();
+        handle.abort();
+    }
+
+    #[tokio::test]
+    async fn it_supports_delayed_start_for_device_status_reports() {
+        let mut config = mqtt_config();
+        config.device_status_report = ReportConfig {
+            interval: Duration::from_millis(50),
+            startup: ReportStartup::Delayed,
+        };
+
+        let (_metrics_tx, metrics_rx) = watch::channel(HostMetricsSnapshot::default());
+        let (outbound_tx, mut outbound_rx) = mpsc::channel(4);
+
+        let handle = tokio::spawn(start_device_status_reporter(
+            config,
+            metrics_rx,
+            outbound_tx,
+        ));
+
+        let first_attempt = timeout(Duration::from_millis(10), outbound_rx.recv()).await;
+        assert!(first_attempt.is_err());
+
+        let delayed_publish = timeout(Duration::from_millis(200), outbound_rx.recv())
+            .await
+            .unwrap();
+        assert!(matches!(delayed_publish, Some(OutboundMessage::Publish(_))));
+
         handle.abort();
     }
 

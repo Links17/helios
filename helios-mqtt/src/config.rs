@@ -6,6 +6,33 @@ pub struct MqttIdentity {
     pub device_uuid: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReportStartup {
+    Immediate,
+    Delayed,
+}
+
+impl Default for ReportStartup {
+    fn default() -> Self {
+        Self::Delayed
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ReportConfig {
+    pub interval: Duration,
+    pub startup: ReportStartup,
+}
+
+impl Default for ReportConfig {
+    fn default() -> Self {
+        Self {
+            interval: Duration::from_secs(300),
+            startup: ReportStartup::default(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ScriptConfig {
     pub enable: bool,
@@ -48,7 +75,8 @@ pub struct MqttConfig {
     pub credentials: MqttCredentials,
     pub clean_session: bool,
     pub keep_alive: Duration,
-    pub report_interval: Duration,
+    pub device_status_report: ReportConfig,
+    pub release_status_report: ReportConfig,
     pub script: ScriptConfig,
     pub shadow_env: ShadowEnvConfig,
 }

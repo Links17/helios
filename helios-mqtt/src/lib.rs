@@ -18,7 +18,10 @@ use tokio::time::timeout;
 use tracing::{debug, warn};
 
 pub use client::{ClientError, start_client};
-pub use config::{MqttConfig, MqttCredentials, MqttIdentity, ScriptConfig, ShadowEnvConfig};
+pub use config::{
+    MqttConfig, MqttCredentials, MqttIdentity, ReportConfig, ReportStartup, ScriptConfig,
+    ShadowEnvConfig,
+};
 pub use env_store::{PersistedShadowEnv, ShadowEnvStore};
 pub use protocol::{
     DeviceStatusGetPayload, DeviceStatusUpdatePayload, ReleaseStatusGetPayload,
@@ -402,7 +405,8 @@ mod tests {
             credentials: MqttCredentials::default(),
             clean_session: true,
             keep_alive: Duration::from_secs(30),
-            report_interval: Duration::from_secs(300),
+            device_status_report: ReportConfig::default(),
+            release_status_report: ReportConfig::default(),
             script: ScriptConfig {
                 enable: true,
                 exec_timeout: Duration::from_secs(1),
