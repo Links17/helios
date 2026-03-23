@@ -116,16 +116,23 @@ pub fn script_get(config: &MqttConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{MqttIdentity, ScriptConfig, ShadowEnvConfig};
+    use std::time::Duration;
+
+    use crate::config::{MqttCredentials, MqttIdentity, ScriptConfig, ShadowEnvConfig};
 
     #[test]
     fn it_builds_expected_script_topics() {
         let cfg = MqttConfig {
+            broker_url: "mqtt://localhost:1883".to_string(),
             topic_head: "sensecapmx".to_string(),
             identity: MqttIdentity {
                 fleet_id: "12".to_string(),
                 device_uuid: "5000001".to_string(),
             },
+            credentials: MqttCredentials::default(),
+            clean_session: true,
+            keep_alive: Duration::from_secs(30),
+            report_interval: Duration::from_secs(300),
             script: ScriptConfig::default(),
             shadow_env: ShadowEnvConfig::default(),
         };

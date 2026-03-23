@@ -9,4 +9,5 @@ pub mod rand;
 pub mod request;
 pub mod systemd;
 pub mod tar;
+pub mod ticker;
 pub mod types;

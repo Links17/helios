@@ -12,6 +12,11 @@ fn parse_duration(s: &str) -> Result<Duration, ParseIntError> {
     Ok(Duration::from_millis(millis))
 }
 
+fn parse_duration_secs(s: &str) -> Result<Duration, ParseIntError> {
+    let secs: u64 = s.parse()?;
+    Ok(Duration::from_secs(secs))
+}
+
 #[derive(Clone, Debug, Parser)]
 #[command(version, about, long_about = None)] // read from Cargo.toml
 pub struct Cli {
@@ -174,6 +179,14 @@ pub struct Cli {
     )]
     pub mqtt_topic_head: Option<String>,
 
+    /// MQTT broker URL, e.g. mqtt://localhost:1883 or mqtts://broker.example.com:8883
+    #[arg(
+        env = "HELIOS_MQTT_BROKER_URL",
+        long = "mqtt-broker-url",
+        value_name = "url"
+    )]
+    pub mqtt_broker_url: Option<String>,
+
     /// MQTT fleet identifier used by csg topics
     #[arg(
         env = "HELIOS_MQTT_FLEET_ID",
@@ -189,6 +202,49 @@ pub struct Cli {
         value_name = "str"
     )]
     pub mqtt_device_uuid: Option<String>,
+
+    /// MQTT username
+    #[arg(
+        env = "HELIOS_MQTT_USERNAME",
+        long = "mqtt-username",
+        value_name = "str"
+    )]
+    pub mqtt_username: Option<String>,
+
+    /// MQTT password
+    #[arg(
+        env = "HELIOS_MQTT_PASSWORD",
+        long = "mqtt-password",
+        value_name = "str"
+    )]
+    pub mqtt_password: Option<String>,
+
+    /// MQTT clean session flag
+    #[arg(
+        env = "HELIOS_MQTT_CLEAN_SESSION",
+        long = "mqtt-clean-session",
+        value_name = "bool",
+        default_value_t = true
+    )]
+    pub mqtt_clean_session: bool,
+
+    /// MQTT keep alive in seconds
+    #[arg(
+        env = "HELIOS_MQTT_KEEP_ALIVE_SEC",
+        long = "mqtt-keep-alive-sec",
+        value_name = "sec",
+        value_parser = parse_duration_secs
+    )]
+    pub mqtt_keep_alive: Option<Duration>,
+
+    /// MQTT periodic report interval in seconds
+    #[arg(
+        env = "HELIOS_MQTT_REPORT_INTERVAL_SEC",
+        long = "mqtt-report-interval-sec",
+        value_name = "sec",
+        value_parser = parse_duration_secs
+    )]
+    pub mqtt_report_interval: Option<Duration>,
 
     /// Enable script command handling in MQTT runtime
     #[arg(
@@ -224,6 +280,15 @@ pub struct Cli {
         default_value_t = true
     )]
     pub mqtt_shadow_env_enable: bool,
+
+    /// Host metrics collection interval in milliseconds
+    #[arg(
+        env = "HELIOS_HOST_METRICS_INTERVAL_MS",
+        long = "host-metrics-interval-ms",
+        value_name = "ms",
+        value_parser = parse_duration
+    )]
+    pub host_metrics_interval: Option<Duration>,
 }
 
 pub fn parse() -> Cli {

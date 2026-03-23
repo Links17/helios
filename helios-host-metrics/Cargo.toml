@@ -1,0 +1,20 @@
+[package]
+name = "helios-host-metrics"
+description = "Host metrics collection for Helios"
+readme = "README.md"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+helios-util.workspace = true
+
+serde.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true

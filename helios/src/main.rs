@@ -18,6 +18,7 @@ use tracing_subscriber::{
 mod cli;
 
 use helios_api as api;
+use helios_host_metrics as host_metrics;
 use helios_legacy as legacy;
 use helios_mqtt as mqtt;
 use helios_oci as oci;
@@ -96,6 +97,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let (uuid, remote_config) = maybe_provision(&cli, &config_store).await?;
     let mqtt_config = maybe_mqtt_config(&cli);
+    let host_metrics_config = maybe_host_metrics_config(&cli, mqtt_config.as_ref());
 
     let state_config = StateConfig {
         host_os: cli.host_os,
@@ -104,11 +106,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     start_supervisor(
         uuid,
+        config_store,
         state_config,
         api_config,
         remote_config,
         legacy_config,
         mqtt_config,
+        host_metrics_config,
     )
     .await?;
 
@@ -118,11 +122,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 #[instrument(name = "helios", skip_all, err)]
 async fn start_supervisor(
     uuid: Uuid,
+    config_store: DocumentStore,
     state_config: StateConfig,
     api_config: Option<ApiConfig>,
     remote_config: Option<RemoteConfig>,
     legacy_config: Option<LegacyConfig>,
     mqtt_config: Option<mqtt::MqttConfig>,
+    host_metrics_config: Option<host_metrics::HostMetricsConfig>,
 ) -> Result<(), Box<dyn Error>> {
     trace!(
         uuid = ?uuid,
@@ -153,8 +159,14 @@ async fn start_supervisor(
         device: initial_state.clone(),
         status: state::UpdateStatus::default(),
     });
-    let (_mqtt_inbound_tx, mqtt_inbound_rx) = mpsc::channel(32);
-    let (mqtt_outbound_tx, mut mqtt_outbound_rx) = mpsc::channel(32);
+    let (mqtt_inbound_tx, mqtt_inbound_rx) = mpsc::channel(32);
+    let (mqtt_outbound_tx, mqtt_outbound_rx) = mpsc::channel(32);
+    let (host_metrics_trigger_tx, host_metrics_trigger_rx) = mpsc::channel(8);
+    let (host_metrics_tx, host_metrics_rx) =
+        watch::channel(host_metrics::HostMetricsSnapshot::default());
+    let mqtt_shadow_env_store = mqtt_config
+        .as_ref()
+        .map(|_| mqtt::ShadowEnvStore::new(config_store.clone()));
 
     // Setup local API server
     let listener = if let Some(api_config) = &api_config {
@@ -193,22 +205,55 @@ async fn start_supervisor(
 
     // Start main loop and terminate on error
     tokio::select! {
-        _ = async {
-            while let Some(message) = mqtt_outbound_rx.recv().await {
-                debug!(?message, "mqtt outbound message");
-            }
-        } => Ok(()),
+        // Start host metrics sampling
+        _ = maybe_start(host_metrics_config, |host_metrics_config| {
+            host_metrics::start(
+                host_metrics_config,
+                host_metrics_trigger_rx,
+                host_metrics_tx,
+            )
+        }) => Ok(()),
+
+        // Start MQTT client
+        res = maybe_start(mqtt_config.clone(), |mqtt_config| {
+            mqtt::start_client(
+                mqtt_config,
+                mqtt_inbound_tx,
+                mqtt_outbound_rx,
+            )
+        }) => res.map_err(|err| err.into()),
 
         // Start MQTT runtime
-        _ = maybe_start(mqtt_config, |mqtt_config| {
+        res = maybe_start(mqtt_config.clone(), |mqtt_config| {
             mqtt::start(
                 mqtt_config,
+                mqtt_shadow_env_store,
                 mqtt_inbound_rx,
                 seek_request_tx.clone(),
                 local_state_rx.clone(),
-                mqtt_outbound_tx,
+                host_metrics_trigger_tx,
+                host_metrics_rx.clone(),
+                mqtt_outbound_tx.clone(),
             )
-        }) => Ok(()),
+        }) => res.map_err(|err| err.into()),
+
+        // Start periodic MQTT device status reporting
+        res = maybe_start(mqtt_config.clone(), |mqtt_config| {
+            mqtt::start_device_status_reporter(
+                mqtt_config,
+                host_metrics_rx.clone(),
+                mqtt_outbound_tx.clone(),
+            )
+        }) => res.map_err(|err| err.into()),
+
+        // Start periodic MQTT release status reporting
+        res = maybe_start(mqtt_config.clone(), |mqtt_config| {
+            mqtt::start_release_status_reporter(
+                mqtt_config,
+                local_state_rx.clone(),
+                mqtt_outbound_tx.clone(),
+            )
+        }) => res.map_err(|err| err.into()),
 
         // Start local API server
         _ = maybe_start(listener, |listener| {
@@ -259,6 +304,7 @@ async fn start_supervisor(
 }
 
 fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
+    let broker_url = cli.mqtt_broker_url.clone()?;
     let topic_head = cli.mqtt_topic_head.clone()?;
     let fleet_id = cli.mqtt_fleet_id.clone()?;
     let device_uuid = cli
@@ -267,11 +313,19 @@ fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
         .or_else(|| cli.uuid.as_ref().map(ToString::to_string))?;
 
     Some(mqtt::MqttConfig {
+        broker_url,
         topic_head,
         identity: mqtt::MqttIdentity {
             fleet_id,
             device_uuid,
         },
+        credentials: mqtt::MqttCredentials {
+            username: cli.mqtt_username.clone(),
+            password: cli.mqtt_password.clone(),
+        },
+        clean_session: cli.mqtt_clean_session,
+        keep_alive: cli.mqtt_keep_alive.unwrap_or(Duration::from_secs(30)),
+        report_interval: cli.mqtt_report_interval.unwrap_or(Duration::from_secs(300)),
         script: mqtt::ScriptConfig {
             enable: cli.mqtt_script_enable,
             exec_timeout: cli.mqtt_script_timeout.unwrap_or(Duration::from_secs(30)),
@@ -280,6 +334,19 @@ fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
         shadow_env: mqtt::ShadowEnvConfig {
             enable: cli.mqtt_shadow_env_enable,
         },
+    })
+}
+
+fn maybe_host_metrics_config(
+    cli: &Cli,
+    mqtt_config: Option<&mqtt::MqttConfig>,
+) -> Option<host_metrics::HostMetricsConfig> {
+    mqtt_config?;
+
+    Some(host_metrics::HostMetricsConfig {
+        sample_interval: cli
+            .host_metrics_interval
+            .unwrap_or(Duration::from_secs(300)),
     })
 }
 

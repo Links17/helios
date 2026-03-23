@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "helios", "helios-api", "helios-balenahup", "helios-legacy", "helios-mqtt", "helios-oci", "helios-remote", "helios-remote-model", "helios-state", "helios-store", "helios-util" ]
+members = [ "helios", "helios-api", "helios-balenahup", "helios-host-metrics", "helios-legacy", "helios-mqtt", "helios-oci", "helios-remote", "helios-remote-model", "helios-state", "helios-store", "helios-util" ]
 
 [workspace.package]
 version = "0.21.2"
@@ -44,6 +44,10 @@ version = "0"
 path = "./helios-api"
 version = "0"
 default-features = false
+
+[workspace.dependencies.helios-host-metrics]
+path = "./helios-host-metrics"
+version = "0"
 
 [workspace.dependencies.helios-store]
 path = "./helios-store"
@@ -156,6 +160,12 @@ default-features = false
 version = "5.11"
 default-features = false
 features = [ "tokio" ]
+
+[workspace.dependencies.url]
+version = "2.5"
+
+[workspace.dependencies.rumqttc]
+version = "0.24"
 
 [profile.release]
 opt-level = "z"

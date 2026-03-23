@@ -34,10 +34,21 @@ impl Default for ShadowEnvConfig {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct MqttCredentials {
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
 #[derive(Clone, Debug)]
 pub struct MqttConfig {
+    pub broker_url: String,
     pub topic_head: String,
     pub identity: MqttIdentity,
+    pub credentials: MqttCredentials,
+    pub clean_session: bool,
+    pub keep_alive: Duration,
+    pub report_interval: Duration,
     pub script: ScriptConfig,
     pub shadow_env: ShadowEnvConfig,
 }

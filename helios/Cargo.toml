@@ -14,6 +14,7 @@ version.workspace = true
 
 [dependencies]
 helios-api.workspace = true
+helios-host-metrics.workspace = true
 helios-legacy.workspace = true
 helios-mqtt.workspace = true
 helios-oci.workspace = true
