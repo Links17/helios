@@ -1022,6 +1022,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "helios-mqtt"
+version = "0.21.2"
+dependencies = [
+ "helios-state",
+ "helios-util",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "helios-oci"
 version = "0.21.2"
 dependencies = [

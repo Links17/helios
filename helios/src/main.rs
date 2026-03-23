@@ -1,8 +1,12 @@
 use std::error::Error;
 use std::future::{self, Future};
+use std::time::Duration;
 
 use tokio::net::{TcpListener, UnixListener};
-use tokio::sync::watch::{self};
+use tokio::sync::{
+    mpsc,
+    watch::{self},
+};
 use tracing::{debug, instrument, trace, warn};
 use tracing_subscriber::{
     EnvFilter,
@@ -15,6 +19,7 @@ mod cli;
 
 use helios_api as api;
 use helios_legacy as legacy;
+use helios_mqtt as mqtt;
 use helios_oci as oci;
 use helios_remote as remote;
 use helios_state as state;
@@ -90,13 +95,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
         });
 
     let (uuid, remote_config) = maybe_provision(&cli, &config_store).await?;
+    let mqtt_config = maybe_mqtt_config(&cli);
 
     let state_config = StateConfig {
         host_os: cli.host_os,
         host_runtime_dir: cli.host_runtime_dir.unwrap_or(util::dirs::runtime_dir()),
     };
 
-    start_supervisor(uuid, state_config, api_config, remote_config, legacy_config).await?;
+    start_supervisor(
+        uuid,
+        state_config,
+        api_config,
+        remote_config,
+        legacy_config,
+        mqtt_config,
+    )
+    .await?;
 
     Ok(())
 }
@@ -108,12 +122,14 @@ async fn start_supervisor(
     api_config: Option<ApiConfig>,
     remote_config: Option<RemoteConfig>,
     legacy_config: Option<LegacyConfig>,
+    mqtt_config: Option<mqtt::MqttConfig>,
 ) -> Result<(), Box<dyn Error>> {
     trace!(
         uuid = ?uuid,
         api = ?api_config,
         remote = ?remote_config,
         legacy = ?legacy_config,
+        mqtt = ?mqtt_config,
         "using config:"
     );
 
@@ -137,6 +153,8 @@ async fn start_supervisor(
         device: initial_state.clone(),
         status: state::UpdateStatus::default(),
     });
+    let (_mqtt_inbound_tx, mqtt_inbound_rx) = mpsc::channel(32);
+    let (mqtt_outbound_tx, mut mqtt_outbound_rx) = mpsc::channel(32);
 
     // Setup local API server
     let listener = if let Some(api_config) = &api_config {
@@ -175,6 +193,23 @@ async fn start_supervisor(
 
     // Start main loop and terminate on error
     tokio::select! {
+        _ = async {
+            while let Some(message) = mqtt_outbound_rx.recv().await {
+                debug!(?message, "mqtt outbound message");
+            }
+        } => Ok(()),
+
+        // Start MQTT runtime
+        _ = maybe_start(mqtt_config, |mqtt_config| {
+            mqtt::start(
+                mqtt_config,
+                mqtt_inbound_rx,
+                seek_request_tx.clone(),
+                local_state_rx.clone(),
+                mqtt_outbound_tx,
+            )
+        }) => Ok(()),
+
         // Start local API server
         _ = maybe_start(listener, |listener| {
             api::start(
@@ -221,6 +256,31 @@ async fn start_supervisor(
             Ok(())
         }
     }
+}
+
+fn maybe_mqtt_config(cli: &Cli) -> Option<mqtt::MqttConfig> {
+    let topic_head = cli.mqtt_topic_head.clone()?;
+    let fleet_id = cli.mqtt_fleet_id.clone()?;
+    let device_uuid = cli
+        .mqtt_device_uuid
+        .clone()
+        .or_else(|| cli.uuid.as_ref().map(ToString::to_string))?;
+
+    Some(mqtt::MqttConfig {
+        topic_head,
+        identity: mqtt::MqttIdentity {
+            fleet_id,
+            device_uuid,
+        },
+        script: mqtt::ScriptConfig {
+            enable: cli.mqtt_script_enable,
+            exec_timeout: cli.mqtt_script_timeout.unwrap_or(Duration::from_secs(30)),
+            max_output_bytes: cli.mqtt_script_max_output_bytes.unwrap_or(64 * 1024),
+        },
+        shadow_env: mqtt::ShadowEnvConfig {
+            enable: cli.mqtt_shadow_env_enable,
+        },
+    })
 }
 
 /// Given an optional value `pred`, invoke closure `f` if it is `Some(P)`

@@ -165,6 +165,65 @@ pub struct Cli {
         requires = "provisioning_key"
     )]
     pub provisioning_supervisor_version: Option<String>,
+
+    /// MQTT topic head (e.g. "sensecapmx")
+    #[arg(
+        env = "HELIOS_MQTT_TOPIC_HEAD",
+        long = "mqtt-topic-head",
+        value_name = "str"
+    )]
+    pub mqtt_topic_head: Option<String>,
+
+    /// MQTT fleet identifier used by csg topics
+    #[arg(
+        env = "HELIOS_MQTT_FLEET_ID",
+        long = "mqtt-fleet-id",
+        value_name = "str"
+    )]
+    pub mqtt_fleet_id: Option<String>,
+
+    /// MQTT device uuid used by csg topics
+    #[arg(
+        env = "HELIOS_MQTT_DEVICE_UUID",
+        long = "mqtt-device-uuid",
+        value_name = "str"
+    )]
+    pub mqtt_device_uuid: Option<String>,
+
+    /// Enable script command handling in MQTT runtime
+    #[arg(
+        env = "HELIOS_MQTT_SCRIPT_ENABLE",
+        long = "mqtt-script-enable",
+        value_name = "bool",
+        default_value_t = true
+    )]
+    pub mqtt_script_enable: bool,
+
+    /// MQTT script execution timeout in milliseconds
+    #[arg(
+        env = "HELIOS_MQTT_SCRIPT_TIMEOUT_MS",
+        long = "mqtt-script-timeout-ms",
+        value_name = "ms",
+        value_parser = parse_duration
+    )]
+    pub mqtt_script_timeout: Option<Duration>,
+
+    /// MQTT script stdout/stderr max size
+    #[arg(
+        env = "HELIOS_MQTT_SCRIPT_MAX_OUTPUT_BYTES",
+        long = "mqtt-script-max-output-bytes",
+        value_name = "int"
+    )]
+    pub mqtt_script_max_output_bytes: Option<usize>,
+
+    /// Enable Shadow env handling in MQTT runtime
+    #[arg(
+        env = "HELIOS_MQTT_SHADOW_ENV_ENABLE",
+        long = "mqtt-shadow-env-enable",
+        value_name = "bool",
+        default_value_t = true
+    )]
+    pub mqtt_shadow_env_enable: bool,
 }
 
 pub fn parse() -> Cli {
